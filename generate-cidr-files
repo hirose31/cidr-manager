@@ -15,6 +15,13 @@ use UNIVERSAL::require;
 
 my $Debug = 0;
 
+sub dprint (@) {
+    return unless $Debug;
+    chomp(my @m = @_);
+    print STDERR 'DEBUG: ', join(" ", @m),"\n";
+}
+
+# you can add
 my %Generator = (
     yaml => \&as_yaml,
     pair => \&as_pair,
@@ -55,10 +62,10 @@ sub read_cidrs {
 
 sub generate_cidr_files {
     my($cidr, $output_dir) = @_;
-    print "generate_cidr_files\n";
+    dprint "generate_cidr_files\n";
 
     while (my($name, $generator) = each %Generator) {
-        print "  $name\n";
+        dprint "  $name\n";
         $generator->($cidr, $output_dir->subdir($name));
     }
 }
@@ -114,7 +121,7 @@ __END__
 
 =head1 NAME
 
-B<program_name> - abstract
+B<program_name> - abstract fixme
 
 =head1 SYNOPSIS
 
