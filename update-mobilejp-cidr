@@ -84,8 +84,8 @@ sub main {
 }
 
 sub byoctet {
-    my $ao = [split /\./, $a];
-    my $bo = [split /\./, $b];
+    my $ao = [split /[.\/]/, $a];
+    my $bo = [split /[.\/]/, $b];
     $ao->[0] <=> $bo->[0] or
     $ao->[1] <=> $bo->[1] or
     $ao->[2] <=> $bo->[2] or
