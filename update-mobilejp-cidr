@@ -4,6 +4,8 @@ use warnings;
 
 use Carp;
 use YAML;
+use Getopt::Long;
+use Pod::Usage;
 
 use WWW::MobileCarrierJP 0.19;
 use WWW::MobileCarrierJP::DoCoMo::CIDR;
@@ -22,7 +24,7 @@ sub short_name_for {
         DoCoMo     => 'docomo',
         EZWeb      => 'ezweb',
         AirHPhone  => 'willcom',
-        ThirdForce => 'V',
+        ThirdForce => 'softbank',
     }->{$carrier};
 }
 
@@ -30,19 +32,37 @@ sub scrape {
     my $result;
     for my $carrier (@Carriers) {
         my $class = "WWW::MobileCarrierJP::${carrier}::CIDR";
-        my $dat = $class->scrape;
+        my $dat;
+        my $retry = 3;
+
+        while ($retry-- >= 0) {
+            $dat = $class->scrape;
+            last if @$dat > 0;
+        };
+        if (@$dat <= 0) {
+            carp "[ERROR] cannot scrape CIDR for $carrier";
+            next;
+        }
         $result->{short_name_for($carrier)} = [map { "$_->{ip}$_->{subnetmask}" } @$dat];
     }
     return $result;
 }
 
 sub main {
-    my $output_dir = "/home/hirose31/repos/cidr-manager/junk"; # fixme
+    my $output_dir = "";
+
+    Getopt::Long::Configure("bundling");
+    GetOptions(
+               'output_dir|o=s' => \$output_dir,
+               'help|h|?' => sub{ pod2usage(-verbose=>1) }) or pod2usage();
+    -d $output_dir || pod2usage("no such directory: $output_dir");
+
 
     my $result = scrape();
 
     while (my($bname, $cidrs) = each %$result) {
         my $filename = join '/', $output_dir, $bname;
+        # fixme check diff
         open my $fh, '>', $filename or do {
             carp "failed to open file: $filename: $!";
             next;
@@ -65,5 +85,14 @@ __END__
 
 =head1 SYNOPSIS
 
+B<update-mobilejp-cidr> B<-o> I<OUTPUT_DIR>
+
     $ update-mobilejp-cidr -o /var/ip.d/plain
+        output into /var/ip.d/plain/{docomo,ezweb,willcom,softbank}
+
+    $ update-mobilejp-cidr -o /var/ip.d/plain && generate-cidr-files ...
+
+=head1 EXIT CODE
+
+If no update cidr then exit(1), otherwise (some cidr updated) exit(0).
 
