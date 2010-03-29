@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 
+use Carp;
 use YAML;
 
 use WWW::MobileCarrierJP 0.19;
@@ -10,21 +11,24 @@ use WWW::MobileCarrierJP::EZWeb::CIDR;
 use WWW::MobileCarrierJP::AirHPhone::CIDR;
 use WWW::MobileCarrierJP::ThirdForce::CIDR;
 
+#my @Carriers = qw/DoCoMo EZWeb AirHPhone ThirdForce/;
+my @Carriers = qw/DoCoMo/; # fixme
+
 &main;exit;
 
 sub short_name_for {
     my $carrier = shift;
     +{
-        DoCoMo     => 'I',
-        EZWeb      => 'E',
-        AirHPhone  => 'H',
+        DoCoMo     => 'docomo',
+        EZWeb      => 'ezweb',
+        AirHPhone  => 'willcom',
         ThirdForce => 'V',
     }->{$carrier};
 }
 
 sub scrape {
     my $result;
-    for my $carrier (qw/DoCoMo EZWeb AirHPhone ThirdForce/) {
+    for my $carrier (@Carriers) {
         my $class = "WWW::MobileCarrierJP::${carrier}::CIDR";
         my $dat = $class->scrape;
         $result->{short_name_for($carrier)} = [map { "$_->{ip}$_->{subnetmask}" } @$dat];
@@ -33,16 +37,33 @@ sub scrape {
 }
 
 sub main {
-    print YAML::Dump(scrape());
+    my $output_dir = "/home/hirose31/repos/cidr-manager/junk"; # fixme
+
+    my $result = scrape();
+
+    while (my($bname, $cidrs) = each %$result) {
+        my $filename = join '/', $output_dir, $bname;
+        open my $fh, '>', $filename or do {
+            carp "failed to open file: $filename: $!";
+            next;
+        };
+        print $fh "$_\n" for sort byoctet @$cidrs;
+        close $fh;
+    }
+}
+
+sub byoctet {
+    my $ao = [split /\./, $a];
+    my $bo = [split /\./, $b];
+    $ao->[0] <=> $bo->[0] or
+    $ao->[1] <=> $bo->[1] or
+    $ao->[2] <=> $bo->[2] or
+    $ao->[3] <=> $bo->[3];
 }
 
 __END__
 
 =head1 SYNOPSIS
 
-    $ net-cidr-mobilejp-scraper.pl
-
-=head2 DESCRIPTION
-
-scraping script for Net::CIDR::MobileJP.
+    $ update-mobilejp-cidr -o /var/ip.d/plain
 
