@@ -9,6 +9,8 @@ use Pod::Usage;
 
 use Digest::MD5::File qw(file_md5);
 use Path::Class qw(file dir);
+use Array::Diff;
+use YAML;
 use WWW::MobileCarrierJP 0.19;
 use WWW::MobileCarrierJP::DoCoMo::CIDR;
 use WWW::MobileCarrierJP::EZWeb::CIDR;
@@ -40,12 +42,14 @@ sub url_for {
 }
 
 sub main {
-    my $output_dir   = "";
-    my $notify_email = [];
+    my $output_dir       = "";
+    my $notify_emailfrom = "";
+    my $notify_email     = [];
 
     Getopt::Long::Configure("bundling");
     GetOptions(
                'o|output_dir=s' => \$output_dir,
+               'f|emailfrom=s'  => \$notify_emailfrom,
                'e|email=s@'     => \$notify_email,
                'help|h|?' => sub{ pod2usage(-verbose=>1) }) or pod2usage();
     -d $output_dir || pod2usage("no such directory: $output_dir");
@@ -66,20 +70,21 @@ sub main {
         $fh->close;
 
         if ( updated_cidr($filename, $filename_tmp) ) {
-            # updated cidr info
-
+            ## updated cidr info
             process_diff(
                 carrier => $bname,
                 url     => url_for($bname),
                 old     => -e $filename ? [ $filename->slurp(chomp=>1) ] : [],
                 new     => [ $filename_tmp->slurp(chomp=>1) ],
-                notify  => { email => $notify_email, },
+                notify  => { email => { from => $notify_emailfrom,
+                                        to   => $notify_email },
+                         },
                );
 
             $exit_code = 0;
             rename $filename_tmp->stringify, $filename->stringify or carp $!;
         } else {
-            # not modified
+            ## not modified
             $filename_tmp->remove or carp $!;
         }
     }
@@ -125,28 +130,63 @@ sub updated_cidr {
 sub process_diff {
     my %p = @_;
 
-    use Data::Dumper; # fixme
-    $Data::Dumper::Indent = 1;
-    $Data::Dumper::Deepcopy = 1;
-    $Data::Dumper::Sortkeys = 1;
-    $Data::Dumper::Deparse = 1;
+    my $change = +{ map { $_ => $p{$_} } qw(url old new) };
+    my $diff = Array::Diff->diff($p{old}, $p{new});
 
-    warn '# p: ',Dumper(\%p);
+    if (@{ $diff->added }) {
+        $change->{added} = $diff->added;
+    }
+
+    if (@{ $diff->deleted }) {
+        $change->{deleted} = $diff->deleted;
+    }
+
+    my $change_text = YAML::Dump({$p{carrier} => $change});
+
+    if (@{ $p{notify}{email}{to} } > 0) {
+        notify_email($p{notify}{email}, $p{carrier}, $change_text);
+    }
+
+}
+
+sub notify_email {
+    my($addr, $carrier, $body) = @_;
+
+    require Email::Sender::Simple;
+    require Email::Simple;
+    require Email::Simple::Creator;
+
+    my $email = Email::Simple->create(
+        header => [
+            To         => join(', ', @{$addr->{to}}),
+            From       => $addr->{from},
+            Subject    => "[NOTIFY] $carrier GW IP address was updated",
+            'X-Mailer' => "$0",
+           ],
+        body => $body,
+       );
+
+    Email::Sender::Simple->send($email);
 }
 
 __END__
 
 =head1 SYNOPSIS
 
-B<update-mobilejp-cidr> B<-o> I<OUTPUT_DIR>
+B<update-mobilejp-cidr>
+B<-o> I<OUTPUT_DIR>
+[ B<-f> I<FROM> B<-e> I<TO> [ B<-e> I<TO> ... ] ]
 
     $ update-mobilejp-cidr -o /var/ip.d/plain
         output into /var/ip.d/plain/{docomo,ezweb,willcom,softbank}
 
+    $ update-mobilejp-cidr -o /var/ip.d/plain -f notifier@example.com -e tommy@example.com -e matsu@example.org
+        if you specify -f and at least one -e option, do notify changing by email.
+
     $ update-mobilejp-cidr -o /var/ip.d/plain && generate-cidr-files ...
+        If no update cidr then exit(1), otherwise (some cidr updated) exit(0).
 
 =head1 EXIT CODE
 
 If no update cidr then exit(1), otherwise (some cidr updated) exit(0).
 
-fixme notify by email if -e option
