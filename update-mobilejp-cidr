@@ -4,10 +4,10 @@ use strict;
 use warnings;
 
 use Carp;
-use Digest::MD5::File qw(file_md5);
 use Getopt::Long;
 use Pod::Usage;
 
+use Digest::MD5::File qw(file_md5);
 use Path::Class qw(file dir);
 use WWW::MobileCarrierJP 0.19;
 use WWW::MobileCarrierJP::DoCoMo::CIDR;
@@ -15,28 +15,38 @@ use WWW::MobileCarrierJP::EZWeb::CIDR;
 use WWW::MobileCarrierJP::AirHPhone::CIDR;
 use WWW::MobileCarrierJP::ThirdForce::CIDR;
 
-my @Carriers = qw/DoCoMo EZWeb ThirdForce/;
+my @Carriers  = qw/DoCoMo EZWeb ThirdForce/;
+my %_i2s = (
+    DoCoMo     => 'docomo',
+    EZWeb      => 'ezweb',
+    AirHPhone  => 'willcom',
+    ThirdForce => 'softbank',
+   );
+my %_s2i = reverse %_i2s;
 
 &main;exit 9;
 
 sub short_name_for {
-    my $carrier = shift;
-    +{
-        DoCoMo     => 'docomo',
-        EZWeb      => 'ezweb',
-        AirHPhone  => 'willcom',
-        ThirdForce => 'softbank',
-    }->{$carrier};
+    $_i2s{+shift};
+}
+sub internal_name_for {
+    $_s2i{+shift};
+}
+
+sub url_for {
+    my $short_name = shift;
+    # assume module are already loaded
+    "WWW::MobileCarrierJP::$_s2i{$short_name}::CIDR"->url;
 }
 
 sub main {
-    my $output_dir = "";
-    my $notify_to  = [];
+    my $output_dir   = "";
+    my $notify_email = [];
 
     Getopt::Long::Configure("bundling");
     GetOptions(
                'o|output_dir=s' => \$output_dir,
-               'e|email=s@'     => \$notify_to,
+               'e|email=s@'     => \$notify_email,
                'help|h|?' => sub{ pod2usage(-verbose=>1) }) or pod2usage();
     -d $output_dir || pod2usage("no such directory: $output_dir");
     $output_dir = dir($output_dir);
@@ -57,16 +67,17 @@ sub main {
 
         if ( updated_cidr($filename, $filename_tmp) ) {
             # updated cidr info
+
+            process_diff(
+                carrier => $bname,
+                url     => url_for($bname),
+                old     => -e $filename ? [ $filename->slurp(chomp=>1) ] : [],
+                new     => [ $filename_tmp->slurp(chomp=>1) ],
+                notify  => { email => $notify_email, },
+               );
+
             $exit_code = 0;
             rename $filename_tmp->stringify, $filename->stringify or carp $!;
-
-            # process_diff(
-            #     carrier => $bname,
-            #     url     => fixme,
-            #     old     => $filename,
-            #     new     => ,
-            #    );
-
         } else {
             # not modified
             $filename_tmp->remove or carp $!;
@@ -91,6 +102,7 @@ sub scrape {
             carp "[ERROR] cannot scrape CIDR for $carrier";
             next;
         }
+
         $result->{short_name_for($carrier)} = [map { "$_->{ip}$_->{subnetmask}" } @$dat];
     }
     return $result;
@@ -108,6 +120,18 @@ sub byoctet {
 sub updated_cidr {
     my($old, $new) = @_;
     return ! -e $old || file_md5($old->stringify) ne file_md5($new->stringify);
+}
+
+sub process_diff {
+    my %p = @_;
+
+    use Data::Dumper; # fixme
+    $Data::Dumper::Indent = 1;
+    $Data::Dumper::Deepcopy = 1;
+    $Data::Dumper::Sortkeys = 1;
+    $Data::Dumper::Deparse = 1;
+
+    warn '# p: ',Dumper(\%p);
 }
 
 __END__
