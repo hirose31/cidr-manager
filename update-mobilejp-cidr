@@ -8,13 +8,14 @@ use Digest::MD5::File qw(file_md5);
 use Getopt::Long;
 use Pod::Usage;
 
+use Path::Class qw(file dir);
 use WWW::MobileCarrierJP 0.19;
 use WWW::MobileCarrierJP::DoCoMo::CIDR;
 use WWW::MobileCarrierJP::EZWeb::CIDR;
 use WWW::MobileCarrierJP::AirHPhone::CIDR;
 use WWW::MobileCarrierJP::ThirdForce::CIDR;
 
-my @Carriers = qw/DoCoMo EZWeb AirHPhone ThirdForce/;
+my @Carriers = qw/DoCoMo EZWeb ThirdForce/;
 
 &main;exit 9;
 
@@ -26,6 +27,53 @@ sub short_name_for {
         AirHPhone  => 'willcom',
         ThirdForce => 'softbank',
     }->{$carrier};
+}
+
+sub main {
+    my $output_dir = "";
+    my $notify_to  = [];
+
+    Getopt::Long::Configure("bundling");
+    GetOptions(
+               'o|output_dir=s' => \$output_dir,
+               'e|email=s@'     => \$notify_to,
+               'help|h|?' => sub{ pod2usage(-verbose=>1) }) or pod2usage();
+    -d $output_dir || pod2usage("no such directory: $output_dir");
+    $output_dir = dir($output_dir);
+
+    my $result = scrape();
+
+    my $exit_code = 1;
+    while (my($bname, $cidrs) = each %$result) {
+        my $filename     = $output_dir->file($bname);
+        my $filename_tmp = $output_dir->file($bname.".tmp");
+
+        my $fh = $filename_tmp->open('>', 0664) or do {
+            carp "failed to open file: $filename_tmp: $!";
+            next;
+        };
+        print $fh "$_\n" for sort byoctet @$cidrs;
+        $fh->close;
+
+        if ( updated_cidr($filename, $filename_tmp) ) {
+            # updated cidr info
+            $exit_code = 0;
+            rename $filename_tmp->stringify, $filename->stringify or carp $!;
+
+            # process_diff(
+            #     carrier => $bname,
+            #     url     => fixme,
+            #     old     => $filename,
+            #     new     => ,
+            #    );
+
+        } else {
+            # not modified
+            $filename_tmp->remove or carp $!;
+        }
+    }
+
+    exit $exit_code;
 }
 
 sub scrape {
@@ -48,41 +96,6 @@ sub scrape {
     return $result;
 }
 
-sub main {
-    my $output_dir = "";
-
-    Getopt::Long::Configure("bundling");
-    GetOptions(
-               'output_dir|o=s' => \$output_dir,
-               'help|h|?' => sub{ pod2usage(-verbose=>1) }) or pod2usage();
-    -d $output_dir || pod2usage("no such directory: $output_dir");
-
-
-    my $result = scrape();
-
-    my $exit_code = 1;
-    while (my($bname, $cidrs) = each %$result) {
-        my $filename     = join '/', $output_dir, $bname;
-        my $filename_tmp = $filename . '.tmp';
-
-        open my $fh, '>', $filename_tmp or do {
-            carp "failed to open file: $filename_tmp: $!";
-            next;
-        };
-        print $fh "$_\n" for sort byoctet @$cidrs;
-        close $fh;
-
-        if ( updated_cidr($filename, $filename_tmp) ) {
-            $exit_code = 0;
-            rename $filename_tmp, $filename or carp $!;
-        } else {
-            unlink $filename_tmp or carp $!;
-        }
-    }
-
-    exit $exit_code;
-}
-
 sub byoctet {
     my $ao = [split /[.\/]/, $a];
     my $bo = [split /[.\/]/, $b];
@@ -94,7 +107,7 @@ sub byoctet {
 
 sub updated_cidr {
     my($old, $new) = @_;
-    return ! -e $old || file_md5($old) ne file_md5($new);
+    return ! -e $old || file_md5($old->stringify) ne file_md5($new->stringify);
 }
 
 __END__
@@ -112,3 +125,4 @@ B<update-mobilejp-cidr> B<-o> I<OUTPUT_DIR>
 
 If no update cidr then exit(1), otherwise (some cidr updated) exit(0).
 
+fixme notify by email if -e option
