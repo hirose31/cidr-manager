@@ -35,15 +35,15 @@ MAIN: {
     GetOptions(
                'input_dir|i=s'  => \$input_dir,
                'output_dir|o=s' => \$output_dir,
-               'debug|d+' => \$Debug,
-               'help|h|?' => sub{ pod2usage(-verbose=>1) }) or pod2usage();
+               'debug|d+'       => \$Debug,
+               'help|h|?'       => sub{ pod2usage(-verbose=>1) }) or pod2usage();
     -d $input_dir  || pod2usage("no such input directory: $input_dir");
     -d $output_dir || pod2usage("no such output directory: $output_dir");
     $input_dir  = dir($input_dir);
     $output_dir = dir($output_dir);
 
     my $cidr = read_cidrs($input_dir);
-    #warn '# cidr: ',Dumper($cidr);
+
     generate_cidr_files($cidr, $output_dir);
 
     exit 0;
@@ -121,116 +121,43 @@ __END__
 
 =head1 NAME
 
-B<program_name> - abstract fixme
+B<generate-cidr-files> - generate files in various format from CIDR data
 
 =head1 SYNOPSIS
 
-B<program_name> [ B<-d> ] I<file>
-[ (B<-e>|-B<--expire>) I<days> ]
-[  B<-n>|-B<--dry-run> ]
-[ (B<-l>|-B<--limit>) I<limit> ]
-[ (B<-u>|-B<--until>) I<clock_time> ]
-
-  $ program_name file > out
-
-=head1 DESCRIPTION
-
-このプログラムは...
+B<generate_cidr_files>
+(B<-i>|B<--input_dir>) I<INPUT_DIR>
+(B<-o>|B<--output_dir>) I<OUTPUT_DIR>
+[ B<-d>|B<--debug> ]
 
 =head1 OPTIONS
 
 =over 4
 
+=item B<-i> I<Str>
+
+=item B<--input_dir> I<Str>
+
+read original CIDR data form files under this directory.
+
+  INPUT_DIR/{cidr1,cidr2,cidr3,...}
+
+=item B<-o> I<Str>
+
+=item B<--output_dir> I<Str>
+
+write files under this directory.
+
+  OUTPUT_DIR/GENERATER/FILE
+
 =item B<-d>
+
+=item B<--debug>
 
 increase debug level.
 -d -d more verbosely.
 
 =back
-
-=head1 EXIT STATUS
-
-exit status.
-
-=head1 RETURN VALUE
-
-What the program or function returns, if successful. This section can
-be omitted for programs whose precise exit codes aren't important,
-provided they return 0 on success as is standard.  It should always be
-present for functions.
-
-=head1 ERRORS
-
-errors.
-
-=head1 DIAGNOSTICS
-
-All possible messages the program can print out--and what they mean.
-You may wish to follow the same documentation style as the Perl
-documentation; see perldiag(1) for more details (and look at the POD
-source as well).
-
-=head1 EXAMPLES
-
-=head2 ex1
-
-ext1...
-
-=head1 ENVIRONMENT
-
-=over 6
-
-=item HOME
-
-Used to determine the user's home directory.
-
-=back
-
-=head1 FUNCTIONS
-
-=over 4
-
-=item B<f1>(I<$a>,I<$b>)
-
-call from:
-call out :
-in :
-out:
-
-desc.
-
-=back
-
-=head1 FILES
-
-=over 4
-
-=item F</path/to/config.ph>
-
-設定ファイル。
-
-=back
-
-=head1 CAVEATS
-
-Things to take special care with, sometimes called WARNINGS.
-
-=head1 BUGS
-
-Things that are broken or just don't work quite right.
-
-=head1 RESTRICTIONS
-
-Bugs you don't plan to fix.  :-)
-
-=head1 NOTES
-
-Miscellaneous commentary.
-
-=head1 SEE ALSO
-
-L<Module::Hoge|Module::Hoge>,
-ls(1), cd(1)
 
 =head1 AUTHOR
 
@@ -240,17 +167,3 @@ HIROSE, Masaaki E<lt>hirose31 _at_ gmail.comE<gt>
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
-
-=head1 HISTORY
-
-=cut
-
-# for Emacsen
-# Local Variables:
-# mode: cperl
-# cperl-indent-level: 4
-# indent-tabs-mode: nil
-# coding: utf-8
-# End:
-
-# vi: set ts=4 sw=4 sts=0 :
