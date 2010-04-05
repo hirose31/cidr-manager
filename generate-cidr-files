@@ -54,7 +54,7 @@ sub read_cidrs {
     my $cidr = {};
 
     for my $cidr_file (grep !$_->is_dir, $input_dir->children) {
-        $cidr->{ $cidr_file->basename } = [ $cidr_file->slurp( chomp => 1 ) ];
+        $cidr->{ $cidr_file->basename } = [ grep !/^(#|$)/, $cidr_file->slurp( chomp => 1 ) ];
     }
 
     return $cidr;
