@@ -87,7 +87,7 @@ sub as_pair {
                         my($fh, $cidr) = @_;
                         while (my($bname, $cidrs) = each %$cidr) {
                             for my $c (@$cidrs) {
-                                printf $fh "%-18s %s\n", $c, $bname;
+                                printf $fh "%-18s %s;\n", $c, $bname;
                             }
                         }
                     });
